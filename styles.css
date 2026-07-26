@@ -1,0 +1,1535 @@
+/* ════════════════════════════════════════════
+   Croustille — portfolio site
+
+   The bakes are presented the way a studio presents work: numbered
+   entries, hairline rules, editorial type on paper. Palette is still
+   sampled from the brand wordmark asset (assets/croustille-wordmark.png):
+     ground  #59090C  — 98.7% of the logo canvas
+     ink     #FEFEFE  — the script itself, pure white
+   The wine is now the accent rather than the ground — the page lives on
+   cream and saves the dark ground for the sign-off.
+   ════════════════════════════════════════════ */
+
+:root {
+  --wine:       #59090C;
+  --wine-700:   #47070A;
+  --wine-900:   #2E0406;
+  --wine-soft:  #74151A;
+
+  --white:      #FFFFFF;
+  --cream:      #FBF6EF;
+  --cream-2:    #FFFCF7;
+  --sand:       #EADCC6;
+  --sand-deep:  #D6BC9B;
+  --caramel:    #946428;   /* darkened from #B8813F to clear 4.5:1 on cream */
+
+  --ink:        #24100E;
+  --muted:      #786055;
+  --muted-light:#DCC8BF;
+
+  --hair:       rgba(89, 9, 12, .16);       /* the hairline rules everywhere */
+  --hair-light: rgba(234, 220, 198, .22);   /* same rule on dark grounds */
+
+  --r-sm: 4px;
+  --r-md: 14px;
+  --r-lg: 24px;
+  --r-pill: 999px;
+
+  --shadow-sm: 0 4px 16px rgba(46, 4, 6, .08);
+  --shadow-md: 0 14px 40px rgba(46, 4, 6, .14);
+  --shadow-lg: 0 30px 70px rgba(46, 4, 6, .22);
+
+  /* Two curves carry every motion on the page, so nothing eases in a
+     dialect of its own. --ease-soft is the shorter interaction curve for
+     hovers and state flips; --ease-glide is a longer expo-out used for
+     anything that travels a distance — entrances, reveals, the menu. */
+  --ease-soft:  cubic-bezier(.2, .8, .3, 1);
+  --ease-glide: cubic-bezier(.16, 1, .3, 1);
+
+  /* Fraunces carries the display voice — a warm, slightly wonky serif that
+     reads artisanal without costuming. Space Grotesk does the talking,
+     Space Mono does the labelling: indexes, eyebrows, captions, meta. */
+  --ff-serif: "Fraunces", Georgia, serif;
+  --ff-sans:  "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ff-mono:  "Space Mono", "SFMono-Regular", Menlo, monospace;
+
+  --pad: clamp(1.25rem, 4vw, 3rem);
+  --sect: clamp(4.75rem, 9.5vw, 8.5rem);
+}
+
+* { box-sizing: border-box; }
+
+/* scroll-padding keeps anchor jumps from landing underneath the sticky
+   header — without it every in-page link parks its heading behind the nav. */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5.5rem;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--ff-sans);
+  font-weight: 300;
+  font-size: clamp(15px, 1.02vw, 17px);
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+/* `overflow-x: hidden` forces the other axis to compute to `auto`, which
+   turns <body> into a scroll container and stops `position: sticky` working
+   for anything inside it — that would break the nav and the card deck.
+   `clip` cuts the same horizontal overflow without creating a scroll
+   container. Kept behind @supports so browsers without it keep the old,
+   still-correct behaviour. */
+@supports (overflow: clip) {
+  body { overflow-x: clip; }
+}
+
+img { max-width: 100%; display: block; }
+a { color: inherit; text-decoration: none; }
+
+.wrap {
+  width: min(1240px, 100% - (var(--pad) * 2));
+  margin-inline: auto;
+}
+
+.section {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding-block: var(--sect);
+}
+
+.section > .wrap,
+.hero > .wrap {
+  position: relative;
+  z-index: 1;
+}
+
+/* Keyboard users get a way past the nav; everyone else never sees it. */
+.skip {
+  position: fixed;
+  top: .75rem; left: .75rem;
+  z-index: 300;
+  transform: translateY(-300%);
+  padding: .7rem 1.1rem;
+  background: var(--ink);
+  color: var(--cream);
+  font-family: var(--ff-mono);
+  font-size: .72rem;
+  letter-spacing: .08em;
+  border-radius: var(--r-sm);
+  transition: transform .3s var(--ease-soft);
+}
+.skip:focus-visible { transform: none; }
+
+/* ─────────── Pencil-sketch edge ornaments ───────────
+
+   Two 3×3 transparent sprite sheets keep 18 separate drawings to just
+   two image requests. On light sections the original linework is softly
+   multiplied into the paper colour; on dark sections it is inverted and
+   screened so only the pencil marks glow through. */
+
+.edge-sketches {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.edge-sketch {
+  --sketch-sheet: url("assets/decor/bakery-sketches-a.png");
+  --sketch-x: 0%;
+  --sketch-y: 0%;
+  --sketch-rotation: 0deg;
+  --sketch-scale: 1;
+  --sketch-nudge-x: 0%;
+  --sketch-nudge-y: 0%;
+
+  position: absolute;
+  width: clamp(7.25rem, 11vw, 10.75rem);
+  aspect-ratio: 1;
+  background-image: var(--sketch-sheet);
+  background-repeat: no-repeat;
+  background-position: var(--sketch-x) var(--sketch-y);
+  background-size: 300% 300%;
+  /* Read right-to-left: normalise the drawing's size, recentre its ink in
+     the box, then tilt. Without the first two the ornaments render at
+     visibly different sizes and drift away from the edge. The outermost
+     translate is the scroll drift — script.js sets --sketch-drift on the
+     .edge-sketches container and it inherits down to each drawing. */
+  transform: translate3d(0, calc(var(--sketch-drift, 0px) * var(--drift-sign, 1)), 0)
+             translate(var(--sketch-nudge-x), var(--sketch-nudge-y))
+             rotate(var(--sketch-rotation))
+             scale(var(--sketch-scale));
+  transform-origin: center;
+}
+
+/* Top and bottom corners drift against each other, so a section's four
+   ornaments breathe apart and together rather than sliding as a slab. */
+.edge-sketch--tl, .edge-sketch--tr { --drift-sign:  1; }
+.edge-sketch--bl, .edge-sketch--br { --drift-sign: -1; }
+
+.edge-sketches--on-light .edge-sketch {
+  opacity: .18;
+  filter: grayscale(1) sepia(.85) saturate(1.65) hue-rotate(312deg);
+  mix-blend-mode: multiply;
+}
+
+.edge-sketches--on-dark .edge-sketch {
+  opacity: .19;
+  filter: grayscale(1) invert(1) sepia(.18);
+  mix-blend-mode: screen;
+}
+
+.edge-sketch--tl {
+  top: clamp(1rem, 4vw, 3.5rem);
+  left: clamp(-4.5rem, -3vw, -2.75rem);
+  --sketch-rotation: -14deg;
+}
+.edge-sketch--tr {
+  top: clamp(2.5rem, 9vw, 7rem);
+  right: clamp(-4.75rem, -3.5vw, -3rem);
+  --sketch-rotation: 13deg;
+}
+.edge-sketch--bl {
+  bottom: clamp(2rem, 7vw, 5rem);
+  left: clamp(-4.75rem, -3.5vw, -3rem);
+  --sketch-rotation: 11deg;
+}
+.edge-sketch--br {
+  right: clamp(-4.5rem, -3vw, -2.75rem);
+  bottom: clamp(.75rem, 3vw, 2.5rem);
+  --sketch-rotation: -12deg;
+}
+
+/* Sheet A: croissant, baguette, cinnamon roll / sourdough, cheesecake,
+   garlic bun / coffee, rolling pin, wheat. */
+.edge-sketch--croissant     { --sketch-x: 0%;   --sketch-y: 0%; }
+.edge-sketch--baguette      { --sketch-x: 50%;  --sketch-y: 0%; }
+.edge-sketch--cinnamon-roll { --sketch-x: 100%; --sketch-y: 0%; }
+.edge-sketch--sourdough     { --sketch-x: 0%;   --sketch-y: 50%; }
+.edge-sketch--cheesecake    { --sketch-x: 50%;  --sketch-y: 50%; }
+.edge-sketch--garlic-bun    { --sketch-x: 100%; --sketch-y: 50%; }
+.edge-sketch--coffee        { --sketch-x: 0%;   --sketch-y: 100%; }
+.edge-sketch--rolling-pin   { --sketch-x: 50%;  --sketch-y: 100%; }
+.edge-sketch--wheat         { --sketch-x: 100%; --sketch-y: 100%; }
+
+/* Sheet B: pain au chocolat, Berliner, babka / fruit tart, madeleines,
+   éclair / whisk, piping bag, cookies. */
+.edge-sketch--pain-au-chocolat,
+.edge-sketch--berliner,
+.edge-sketch--babka,
+.edge-sketch--fruit-tart,
+.edge-sketch--madeleines,
+.edge-sketch--eclair,
+.edge-sketch--whisk,
+.edge-sketch--piping-bag,
+.edge-sketch--cookies {
+  --sketch-sheet: url("assets/decor/bakery-sketches-b.png");
+}
+.edge-sketch--pain-au-chocolat { --sketch-x: 0%;   --sketch-y: 0%; }
+.edge-sketch--berliner         { --sketch-x: 50%;  --sketch-y: 0%; }
+.edge-sketch--babka            { --sketch-x: 100%; --sketch-y: 0%; }
+.edge-sketch--fruit-tart       { --sketch-x: 0%;   --sketch-y: 50%; }
+.edge-sketch--madeleines       { --sketch-x: 50%;  --sketch-y: 50%; }
+.edge-sketch--eclair           { --sketch-x: 100%; --sketch-y: 50%; }
+.edge-sketch--whisk            { --sketch-x: 0%;   --sketch-y: 100%; }
+.edge-sketch--piping-bag       { --sketch-x: 50%;  --sketch-y: 100%; }
+.edge-sketch--cookies          { --sketch-x: 100%; --sketch-y: 100%; }
+
+/* Per-cell optical correction, measured from the sprite sheets' alpha.
+   The eighteen drawings fill their cells by different amounts (64%–86%)
+   and sit off-centre by up to 12%, so identical boxes were rendering at
+   visibly different sizes and different distances from the page edge.
+   These normalise every drawing's ink to the same footprint and recentre
+   it, so the ornaments read as one consistent set. */
+.edge-sketch--babka            { --sketch-scale: 0.937; --sketch-nudge-x:   3.8%; --sketch-nudge-y:  -5.0%; }
+.edge-sketch--baguette         { --sketch-scale: 0.984; --sketch-nudge-x:  -3.3%; --sketch-nudge-y:  -4.1%; }
+.edge-sketch--berliner         { --sketch-scale: 1.147; --sketch-nudge-x:   1.4%; --sketch-nudge-y:  -5.8%; }
+.edge-sketch--cheesecake       { --sketch-scale: 1.028; --sketch-nudge-x:  -2.0%; --sketch-nudge-y:   1.0%; }
+.edge-sketch--cinnamon-roll    { --sketch-scale: 1.185; --sketch-nudge-x:   1.3%; --sketch-nudge-y:  -5.4%; }
+.edge-sketch--coffee           { --sketch-scale: 1.009; --sketch-nudge-x:  -6.0%; --sketch-nudge-y:  12.5%; }
+.edge-sketch--cookies          { --sketch-scale: 0.963; --sketch-nudge-x:   5.4%; --sketch-nudge-y:   8.5%; }
+.edge-sketch--croissant        { --sketch-scale: 1.015; --sketch-nudge-x:  -6.1%; --sketch-nudge-y:  -6.4%; }
+.edge-sketch--eclair           { --sketch-scale: 0.951; --sketch-nudge-x:   2.4%; --sketch-nudge-y:   0.0%; }
+.edge-sketch--fruit-tart       { --sketch-scale: 0.954; --sketch-nudge-x:   0.6%; --sketch-nudge-y:  -9.6%; }
+.edge-sketch--garlic-bun       { --sketch-scale: 1.048; --sketch-nudge-x:   1.0%; --sketch-nudge-y:   0.6%; }
+.edge-sketch--madeleines       { --sketch-scale: 0.882; --sketch-nudge-x:   2.8%; --sketch-nudge-y:  -6.0%; }
+.edge-sketch--pain-au-chocolat { --sketch-scale: 1.025; --sketch-nudge-x:  -0.9%; --sketch-nudge-y:  -5.8%; }
+.edge-sketch--piping-bag       { --sketch-scale: 0.954; --sketch-nudge-x:   1.1%; --sketch-nudge-y:   9.8%; }
+.edge-sketch--rolling-pin      { --sketch-scale: 0.963; --sketch-nudge-x:  -1.0%; --sketch-nudge-y:   6.3%; }
+.edge-sketch--sourdough        { --sketch-scale: 0.880; --sketch-nudge-x:  -3.8%; --sketch-nudge-y:  -5.9%; }
+.edge-sketch--wheat            { --sketch-scale: 0.929; --sketch-nudge-x:  -1.0%; --sketch-nudge-y:   8.3%; }
+.edge-sketch--whisk            { --sketch-scale: 0.937; --sketch-nudge-x:  -0.4%; --sketch-nudge-y:   9.0%; }
+
+/* ─────────── Type ─────────── */
+
+.h2 {
+  font-family: var(--ff-serif);
+  font-weight: 440;
+  font-size: clamp(2.3rem, 5vw, 4rem);
+  line-height: 1.04;
+  letter-spacing: -.02em;
+  margin: .4rem 0 1.1rem;
+}
+.h3 {
+  font-family: var(--ff-serif);
+  font-weight: 460;
+  font-size: clamp(1.6rem, 2.6vw, 2.3rem);
+  line-height: 1.12;
+  margin: 0 0 .7rem;
+}
+.h2 em, .h3 em { font-style: italic; color: var(--caramel); }
+.h2--light { color: var(--white); }
+.h2--light em { color: var(--sand-deep); }
+
+.eyebrow {
+  font-family: var(--ff-mono);
+  font-size: .7rem;
+  font-weight: 400;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--caramel);
+  margin: 0;
+}
+.eyebrow--light { color: var(--sand-deep); }
+
+.lede { font-size: 1.08rem; color: var(--ink); margin: 0 0 1rem; }
+.body { color: var(--muted); margin: 0 0 1rem; }
+.body--light { color: var(--muted-light); }
+
+/* Section heads read like an index: number, label, then a rule running to
+   the margin. The rule is what makes six same-coloured sections scan as
+   six chapters instead of one long scroll. */
+.shead {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  margin-bottom: clamp(1rem, 2.5vw, 1.75rem);
+}
+.shead__idx {
+  font-family: var(--ff-mono);
+  font-size: .72rem;
+  letter-spacing: .18em;
+  color: var(--caramel);
+}
+.shead__lbl {
+  font-family: var(--ff-mono);
+  font-size: .72rem;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.shead::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--hair);
+}
+.shead--light .shead__lbl { color: var(--cream); }
+.shead--light .shead__idx { color: var(--sand-deep); }
+.shead--light::after { background: var(--hair-light); }
+
+/* ─────────── Buttons ─────────── */
+
+/* Portfolio buttons: mono caps in a hairline box. The fill sweeps up from
+   the bottom edge on hover rather than the button lifting — flat page,
+   flat controls. */
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
+  padding: .9rem 1.7rem;
+  border: 1px solid var(--ink);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--ff-mono);
+  font-size: .74rem;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  overflow: hidden;
+  z-index: 0;
+  transition: color .35s var(--ease-soft), border-color .35s var(--ease-soft);
+}
+.btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--wine);
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform .38s var(--ease-glide);
+}
+.btn:hover { color: var(--cream); border-color: var(--wine); }
+.btn:hover::before { transform: scaleY(1); }
+
+.btn--fill {
+  background: var(--wine);
+  border-color: var(--wine);
+  color: var(--cream);
+}
+.btn--fill::before { background: var(--ink); }
+
+/* On the dark sections the same button swaps its palette. */
+.btn--light { border-color: var(--sand-deep); color: var(--cream); }
+.btn--light::before { background: var(--cream); }
+.btn--light:hover { color: var(--wine-900); border-color: var(--cream); }
+
+.btn--sm { padding: .65rem 1.2rem; font-size: .68rem; }
+
+.link-arrow {
+  font-family: var(--ff-mono);
+  font-size: .74rem;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--wine);
+  border-bottom: 1px solid rgba(89, 9, 12, .3);
+  padding-bottom: .3rem;
+}
+.link-arrow span { display: inline-block; transition: transform .3s; }
+.link-arrow:hover span { transform: translateX(5px); }
+
+/* ─────────── Announcement ticker ─────────── */
+
+.announce {
+  background: var(--ink);
+  color: var(--sand);
+  overflow: hidden;
+  padding-block: .5rem;
+  font-family: var(--ff-mono);
+  font-size: .64rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+.announce__track {
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+  width: max-content;
+  animation: marquee 38s linear infinite;
+}
+.announce .dot {
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--caramel);
+  flex: none;
+}
+@keyframes marquee { to { transform: translateX(-50%); } }
+/* Hold the marquee while it is being read. */
+.announce:hover .announce__track { animation-play-state: paused; }
+
+/* ─────────── Nav ─────────── */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--cream);
+  color: var(--ink);   /* so focus rings inside the bar inherit a legible colour */
+  border-bottom: 1px solid var(--hair);
+  transition: background .4s, box-shadow .4s;
+}
+.nav.is-stuck {
+  background: rgba(251, 246, 239, .92);
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: 0 8px 30px rgba(46, 4, 6, .10);
+}
+.nav__inner {
+  width: min(1240px, 100% - (var(--pad) * 2));
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding-block: .55rem;
+}
+
+/* The real wordmark, used as a mask so a single asset can be tinted
+   any brand colour via background-color. The text stays in the markup
+   and is simply shifted out of view. */
+.logo {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  transition: transform .3s, opacity .3s;
+}
+.logo:hover { transform: translateY(-2px); opacity: .88; }
+.logo__word {
+  display: block;
+  /* The mark sets the bar's height — 778:317 means width ÷ 2.45 is the
+     rendered height, so this is the lever for how tall the header sits. */
+  width: clamp(104px, 8.6vw, 126px);
+  aspect-ratio: 778 / 317;
+  background-color: var(--wine);
+  -webkit-mask: url("assets/croustille-wordmark.png") center / contain no-repeat;
+          mask: url("assets/croustille-wordmark.png") center / contain no-repeat;
+  text-indent: -200vw;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.logo__word--lg { width: clamp(150px, 15vw, 196px); }
+.logo__word--on-dark { background-color: var(--white); }
+
+.nav__links {
+  display: flex;
+  align-items: center;
+  gap: clamp(1rem, 2.2vw, 2rem);
+  margin-inline: auto;
+}
+.nav__links a {
+  position: relative;
+  color: var(--ink);
+  font-family: var(--ff-mono);
+  font-size: .72rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  opacity: .78;
+  transition: opacity .25s;
+}
+/* Each link carries its section number — the nav is the site's index. */
+.nav__links a sup {
+  font-size: .58em;
+  color: var(--caramel);
+  margin-right: .3em;
+}
+.nav__links a::after {
+  content: "";
+  position: absolute;
+  left: 0; bottom: -6px;
+  width: 100%; height: 1px;
+  background: var(--wine);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform .35s var(--ease-soft);
+}
+.nav__links a:hover { opacity: 1; }
+.nav__links a:hover::after { transform: scaleX(1); transform-origin: left; }
+
+.nav__right { display: flex; align-items: center; gap: .85rem; flex: none; }
+.nav__social {
+  display: grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(36, 16, 14, .25);
+  transition: background .3s, border-color .3s, transform .3s;
+}
+.nav__social svg { width: 15px; height: 15px; fill: var(--ink); }
+.nav__social:hover { background: rgba(89, 9, 12, .07); border-color: var(--wine); transform: translateY(-2px); }
+.nav__cta { padding: .55rem 1.1rem; font-size: .66rem; }
+
+.nav__burger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4.5px;
+  width: 38px; height: 38px;
+  padding: 0 8px;
+  background: none;
+  border: 1px solid rgba(36, 16, 14, .25);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.nav__burger span {
+  display: block;
+  height: 1.5px;
+  background: var(--ink);
+  border-radius: 2px;
+  transition: transform .32s, opacity .22s;
+}
+.nav__burger.is-open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+.nav__burger.is-open span:nth-child(2) { opacity: 0; }
+.nav__burger.is-open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+/* ─────────── Hero ─────────── */
+
+/* Type-first: the statement owns the screen and the clip sits beside it
+   like a plate in a lookbook. Still a split rather than a full-bleed cover —
+   the croissant clip is a 720×1280 portrait, and stretching it across a
+   wide hero would upscale it ~2.5× and crop away the composition. */
+.hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--cream);
+}
+.hero__inner {
+  display: grid;
+  /* Text gets the wider column — the clip is a narrow 9:16 panel, so an
+     even split left it stranded in too much space. */
+  grid-template-columns: 1.18fr .82fr;
+  gap: clamp(2rem, 5vw, 4.5rem);
+  align-items: center;
+
+  --hero-pad-t: clamp(1.75rem, 3.5vw, 3rem);
+  --hero-pad-b: clamp(2rem, 4vw, 3.5rem);
+  padding-block: var(--hero-pad-t) var(--hero-pad-b);
+
+  /* Fill exactly what is left of the window below the announcement bar and
+     the sticky nav — --chrome-h is measured in script.js, since the nav's
+     height follows the wordmark's clamp and is not a constant. svh (not vh)
+     so mobile browser chrome does not push the hero taller than the screen. */
+  min-height: calc(100svh - var(--chrome-h, 104px));
+}
+
+.hero__content { position: relative; z-index: 1; }
+
+.hero__meta {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  margin: 0 0 1rem;
+  font-family: var(--ff-mono);
+  font-size: .7rem;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--caramel);
+}
+.hero__meta::before {
+  content: "";
+  width: 2.4rem;
+  height: 1px;
+  background: var(--caramel);
+}
+
+.hero__title {
+  margin: 0 0 1.3rem;
+  font-family: var(--ff-serif);
+  font-weight: 400;
+  font-size: clamp(3.2rem, 8.2vw, 6.8rem);
+  line-height: .96;
+  letter-spacing: -.025em;
+}
+.hero__title span { display: block; }
+.hero__title .is-italic {
+  font-style: italic;
+  color: var(--wine);
+}
+
+.hero__sub {
+  max-width: 44ch;
+  margin: 0 0 2rem;
+  color: var(--muted);
+  font-size: 1.02rem;
+}
+.hero__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1.4rem; }
+
+/* The meta strip at the hero's foot — the portfolio's "specs" line. */
+.hero__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem 1.8rem;
+  margin-top: clamp(2rem, 5vh, 3.5rem);
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--hair);
+  font-family: var(--ff-mono);
+  font-size: .68rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.hero__foot a { color: var(--wine); }
+.hero__foot a:hover { border-bottom: 1px solid var(--wine); }
+
+/* The clip is 720×1280 — a 9:16 reel. The frame carries that proportion
+   exactly, so nothing is cropped.
+
+   Width is derived from the height still available in the window rather than
+   fixed, so the reel always fits the first screen: whatever vertical room is
+   left after the nav and the hero's own padding — minus the caption line
+   under the frame — × 9/16, is the widest it may be. The 360px ceiling stops
+   it ballooning on tall windows, and 100% keeps it inside its column on
+   narrow ones. The arch radius echoes the patisserie dome. */
+.hero__figure {
+  --avail-h: calc(100svh - var(--chrome-h, 104px) - var(--hero-pad-t) - var(--hero-pad-b));
+
+  margin: 0;
+  width: min(100%, 360px, calc((var(--avail-h) - 2.4rem) * 9 / 16));
+  margin-inline: auto;
+  /* --hero-shift is driven by the scroll loop in script.js; the frame
+     drifts slower than the page so the hero has depth on the way out. */
+  transform: translate3d(0, var(--hero-shift, 0px), 0);
+}
+.hero__frame {
+  border-radius: 260px 260px var(--r-md) var(--r-md);
+  overflow: hidden;
+  border: 1px solid var(--hair);
+  box-shadow: var(--shadow-md);
+  background: var(--sand);
+}
+.hero__figure img,
+.hero__figure video {
+  display: block;
+  width: 100%;
+  /* The width/height attributes on the element reserve space before the file
+     arrives, but that height is a presentational hint — without height:auto
+     it wins over aspect-ratio and the frame renders 1280px tall. */
+  height: auto;
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  background: var(--wine-900);
+
+  /* Three layers of movement share this element without fighting, because
+     each owns a different property:
+       scale      — static overscan, the headroom the parallax travels into
+       translate  — the entrance (individual property, composes before transform)
+       transform  — the scroll parallax, written by the drift pass in script.js
+     Animating `transform` for the entrance would blow the parallax away the
+     moment the animation settled on `transform: none`. */
+  scale: 1.06;
+  transform: translate3d(0, var(--hero-inner, 0px), 0);
+  animation: heroRise 1.2s var(--ease-glide) .12s both;
+}
+@keyframes heroRise {
+  from { opacity: 0; translate: 0 20px; }
+  to   { opacity: 1; translate: 0 0; }
+}
+.hero__figcap {
+  margin-top: .8rem;
+  text-align: center;
+  font-family: var(--ff-mono);
+  font-size: .64rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Load choreography — the hero copy arrives a line at a time rather than
+   as one block, so the first thing the page does is move gently. Delays
+   are hand-set per element instead of by :nth-child because the headline's
+   two spans need to land between their parent's neighbours. */
+.hero__meta            { animation: heroIn .9s var(--ease-glide) .10s both; }
+.hero__title span:nth-child(1) { animation: heroIn 1s var(--ease-glide) .22s both; }
+.hero__title span:nth-child(2) { animation: heroIn 1s var(--ease-glide) .34s both; }
+.hero__sub             { animation: heroIn .9s var(--ease-glide) .46s both; }
+.hero__actions         { animation: heroIn .9s var(--ease-glide) .58s both; }
+.hero__foot            { animation: heroIn .9s var(--ease-glide) .70s both; }
+
+@keyframes heroIn {
+  from { opacity: 0; transform: translate3d(0, 22px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ─────────── Marquee band ─────────── */
+
+/* The oversized scrolling strap between chapters. Decorative — the copy it
+   carries already lives elsewhere on the page, so the duplicate run is
+   aria-hidden and the whole band reads as a divider, not content. */
+.band {
+  overflow: hidden;
+  border-block: 1px solid var(--hair);
+  padding-block: clamp(1rem, 2.4vw, 1.6rem);
+  background: var(--cream-2);
+}
+.band__track {
+  display: flex;
+  gap: 2.6rem;
+  width: max-content;
+  animation: marquee 32s linear infinite;
+}
+.band__run {
+  display: flex;
+  align-items: center;
+  gap: 2.6rem;
+  flex: none;
+}
+.band__run span {
+  font-family: var(--ff-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(1.5rem, 3.4vw, 2.6rem);
+  letter-spacing: -.01em;
+  color: var(--wine);
+  white-space: nowrap;
+}
+.band__run i {
+  font-style: normal;
+  color: var(--sand-deep);
+  font-size: clamp(1rem, 2vw, 1.5rem);
+}
+.band:hover .band__track { animation-play-state: paused; }
+
+/* ─────────── Selected bakes ─────────── */
+
+.work { background: var(--cream); }
+
+/* Sticky needs a clear line of sight to the scrollport: .section's default
+   overflow:hidden would make this section the cards' nearest scroll box and
+   the stack would never pin. Nothing in this chapter bleeds past its edges
+   (no corner sketches here), so visible is safe. */
+.work.section { overflow: visible; }
+
+.work__intro {
+  max-width: 52ch;
+  margin-bottom: clamp(2.5rem, 6vw, 4.5rem);
+}
+.work__intro .body { margin: 0; }
+
+.work__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: clamp(1.25rem, 3vh, 2rem);
+  /* 1fr rows equalise every card to the tallest, so each card fully covers
+     the one beneath it in the stack — with mixed heights, a covered card's
+     bottom edge would poke out under the card on top of it. */
+  grid-auto-rows: 1fr;
+
+  --stack-top:  calc(var(--nav-h, 60px) + .9rem);
+  --stack-peek: 16px;
+}
+
+/* The resting beat after the fifth card lands. Sticky cards stay pinned
+   only while their containing block — the ol's CONTENT box, padding does
+   not count — still has room below them, so the hold has to be content.
+   This empty pseudo-item takes an implicit 1fr row, and the equalisation
+   above makes that row a full card tall: one card-height of scroll with
+   the finished deck on screen before it releases. */
+.work__list::after { content: ""; }
+
+/* ── The deck ──
+   Every card pins to the same neighbourhood below the nav — each one
+   16px lower than the last, so covered cards keep a sliver of top edge in
+   view — and the next entry simply slides up over it. position:sticky does
+   all of the choreography, which is why scrolling back up plays the whole
+   thing in reverse for free: there is no state to rewind, only geometry.
+
+   --stack-p (0 → 1, how far the next card has covered this one) is written
+   by the drift pass in script.js; the transform and the veil below both
+   derive from it, so covered cards recede and dim in one coordinated move.
+
+   Gated on viewport height: a pinned card taller than the screen would
+   hide its own bottom with no way to scroll it into view. The 560px floor
+   is mirrored by STACK_MIN_VH in script.js — change both together. */
+@media (min-height: 560px) {
+  .work__list > li {
+    position: sticky;
+    top: calc(var(--stack-top) + var(--stack-i, 0) * var(--stack-peek));
+    transform: scale(calc(1 - .045 * var(--stack-p, 0)));
+    transform-origin: 50% 0;
+  }
+}
+.work__list > li:nth-child(1) { --stack-i: 0; }
+.work__list > li:nth-child(2) { --stack-i: 1; }
+.work__list > li:nth-child(3) { --stack-i: 2; }
+.work__list > li:nth-child(4) { --stack-i: 3; }
+.work__list > li:nth-child(5) { --stack-i: 4; }
+.work__list > li:nth-child(6) { --stack-i: 5; }
+
+/* Each bake is an entry in the portfolio: oversized index, plate, then the
+   write-up. Entries alternate sides so the deck reads as a rhythm rather
+   than a table. Cards are opaque because they overlap while stacking. */
+.entry {
+  position: relative;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(3.5rem, auto) minmax(0, 1fr) minmax(0, 1.1fr);
+  grid-template-areas: "idx media body";
+  gap: clamp(1.4rem, 4vw, 4rem);
+  align-items: center;
+  padding: clamp(1.4rem, 3.2vw, 2.6rem);
+  background: var(--cream-2);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-lg);
+  /* The shadow throws upward — it is the card's leading edge as it rides
+     over the one beneath, so that is the edge that needs the depth. */
+  box-shadow: 0 -14px 36px rgba(46, 4, 6, .08);
+}
+
+/* The veil that settles over a card as the next one covers it. Paper
+   colour, so receding cards sink back into the page rather than going
+   grey. Sits above the card's own content, ignores the pointer. */
+.entry::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--cream);
+  opacity: calc(var(--stack-p, 0) * .5);
+  pointer-events: none;
+}
+
+.entry--flip {
+  grid-template-columns: minmax(3.5rem, auto) minmax(0, 1.1fr) minmax(0, 1fr);
+  grid-template-areas: "idx body media";
+}
+
+.entry__idx {
+  grid-area: idx;
+  align-self: start;
+  font-family: var(--ff-serif);
+  font-weight: 400;
+  font-style: italic;
+  font-size: clamp(2.1rem, 4.6vw, 3.6rem);
+  line-height: 1;
+  color: var(--sand-deep);
+}
+
+.entry__media {
+  grid-area: media;
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  border: 1px solid var(--hair);
+}
+.entry__media img {
+  width: 100%;
+  aspect-ratio: 5 / 4;
+  object-fit: cover;
+  transition: transform .9s var(--ease-soft);
+}
+.entry:hover .entry__media img { transform: scale(1.05); }
+
+.entry__body { grid-area: body; }
+.entry__title {
+  font-family: var(--ff-serif);
+  font-weight: 440;
+  font-size: clamp(1.8rem, 3.4vw, 2.9rem);
+  line-height: 1.05;
+  letter-spacing: -.015em;
+  margin: 0 0 .8rem;
+  transition: color .35s var(--ease-soft);
+}
+.entry:hover .entry__title { color: var(--wine); }
+.entry__desc {
+  max-width: 46ch;
+  margin: 0 0 1.2rem;
+  color: var(--muted);
+}
+.entry__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.entry__tags li {
+  font-family: var(--ff-mono);
+  font-size: .62rem;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--caramel);
+  border: 1px solid rgba(148, 100, 40, .35);
+  border-radius: var(--r-pill);
+  padding: .32rem .8rem;
+}
+
+/* ─────────── The film (scroll-scrubbed) ───────────
+
+   A tall `.reel__track` supplies the scroll distance; `.reel__stage` sticks
+   inside it so the film holds the screen while the page travels past. The
+   clip never plays — script.js maps track progress onto currentTime, so the
+   visitor's scroll is the transport, forwards and back.
+
+   Everything scroll-driven is gated behind `.reel--live`, which script.js
+   adds only when it has a working video and the visitor has not asked for
+   reduced motion. The unadorned rules below are therefore the no-JS and
+   reduced-motion presentation: a still poster with the copy over it. That
+   ordering matters — a 340vh track with no scrubbing would strand a frozen
+   frame across three screens of scrolling. */
+
+.reel {
+  position: relative;
+  background: var(--wine-900);
+  color: var(--white);
+}
+
+.reel__track { height: auto; }
+
+.reel__stage {
+  position: relative;
+  display: grid;
+  align-content: end;
+  min-height: min(70svh, 620px);
+  overflow: clip;
+  isolation: isolate;
+}
+
+.reel__video {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Dark at the foot so the copy holds, dark again at the head so the
+   translucent nav keeps its contrast, and near-clear through the middle
+   where the food actually is. */
+.reel__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(46, 4, 6, .90) 0%,
+    rgba(46, 4, 6, .62) 26%,
+    rgba(46, 4, 6, .18) 58%,
+    rgba(46, 4, 6, .14) 78%,
+    rgba(46, 4, 6, .48) 100%
+  );
+}
+
+.reel__copy {
+  position: relative;
+  z-index: 2;
+  width: min(1240px, 100% - (var(--pad) * 2));
+  margin-inline: auto;
+  padding-block: clamp(2.5rem, 7vh, 5rem);
+}
+
+/* Live, the copy sits at the foot of a full screen and has room to spare.
+   Static it sits in a much shorter stage, close enough to the top that the
+   sticky nav can cut into the eyebrow — so buy the head some clearance. */
+.reel:not(.reel--live) .reel__copy {
+  padding-block-start: clamp(5.5rem, 13vh, 8rem);
+}
+
+.reel__title {
+  max-width: 18ch;
+  text-shadow: 0 2px 24px rgba(46, 4, 6, .5);
+}
+
+.reel__captions { margin: .2rem 0 1rem; }
+
+.reel__cap {
+  display: grid;
+  gap: .2rem;
+  margin: 0 0 1rem;
+  max-width: 46ch;
+}
+
+.reel__cap-name {
+  font-family: var(--ff-serif);
+  font-size: clamp(1.15rem, 2vw, 1.5rem);
+  font-weight: 460;
+  color: var(--white);
+}
+
+.reel__cap-note {
+  font-size: .95rem;
+  color: var(--muted-light);
+}
+
+.reel__hint {
+  margin: 0;
+  font-family: var(--ff-mono);
+  font-size: .66rem;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--sand-deep);
+}
+
+.reel__meter {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 3;
+  height: 2px;
+  background: rgba(234, 220, 198, .16);
+  display: none;
+}
+
+.reel__meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--sand-deep);
+  transform: scaleX(var(--reel-progress, 0));
+  transform-origin: left center;
+}
+
+/* ── Scroll-driven presentation ── */
+
+/* 480vh for 19.2s of film keeps the scrub rate close to what a single
+   10s shot had at 340vh — lengthen the film, lengthen the track. */
+.reel--live .reel__track { height: var(--reel-track, 480vh); }
+
+.reel--live .reel__stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  min-height: 0;
+}
+
+.reel--live .reel__meter { display: block; }
+
+/* Stacked in one grid cell so the block never resizes as the caption
+   swaps — the cell takes the taller of the two acts and holds it. */
+.reel--live .reel__captions { display: grid; }
+
+.reel--live .reel__cap {
+  grid-area: 1 / 1;
+  margin: 0 0 1rem;
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity .45s var(--ease-soft), transform .7s var(--ease-glide);
+}
+
+.reel--live .reel__cap.is-on {
+  opacity: 1;
+  transform: none;
+}
+
+@media (max-width: 700px) {
+  .reel { --reel-track: 360vh; }
+  .reel__cap { max-width: none; }
+}
+
+/* ─────────── The practice ─────────── */
+
+.about { background: var(--cream); }
+
+/* The section leads with the belief, not the biography. */
+.about__quote {
+  margin: 0 0 clamp(2.5rem, 6vw, 4rem);
+  font-family: var(--ff-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(2rem, 4.6vw, 3.6rem);
+  line-height: 1.15;
+  letter-spacing: -.015em;
+  max-width: 22ch;
+}
+.about__quote em {
+  font-style: italic;
+  color: var(--wine);
+}
+
+.about__grid {
+  display: grid;
+  grid-template-columns: 1.15fr .85fr;
+  gap: clamp(2.5rem, 6vw, 5.5rem);
+  align-items: start;
+  margin-bottom: clamp(3rem, 7vw, 5rem);
+}
+
+.about__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.about__list li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  padding-block: 1rem;
+  border-top: 1px solid var(--hair);
+  align-items: baseline;
+}
+.about__list li:last-child { border-bottom: 1px solid var(--hair); }
+.about__list .idx {
+  font-family: var(--ff-mono);
+  font-size: .66rem;
+  letter-spacing: .14em;
+  color: var(--caramel);
+}
+.about__list strong {
+  display: block;
+  font-weight: 500;
+  font-size: .95rem;
+}
+.about__list p { margin: .1rem 0 0; color: var(--muted); font-size: .87rem; }
+
+/* ─────────── Menu index ─────────── */
+
+.menu { background: var(--cream-2); border-block: 1px solid var(--hair); }
+
+.menu__cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(2.5rem, 6vw, 6rem);
+  margin-top: clamp(2rem, 4vw, 3rem);
+}
+
+.menu__col h3 {
+  margin: 0 0 1.2rem;
+  font-family: var(--ff-mono);
+  font-weight: 400;
+  font-size: .72rem;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--caramel);
+}
+
+.menu__list { list-style: none; margin: 0; padding: 0; }
+.menu__list li {
+  display: grid;
+  grid-template-columns: minmax(0, auto) 1fr;
+  align-items: baseline;
+  gap: 1rem;
+  padding-block: .85rem;
+  border-top: 1px solid var(--hair);
+  transition: padding-inline .4s var(--ease-soft), background .4s var(--ease-soft);
+}
+.menu__list li:last-child { border-bottom: 1px solid var(--hair); }
+.menu__list li:hover { padding-inline: .7rem; background: rgba(89, 9, 12, .035); }
+.menu__name {
+  font-family: var(--ff-serif);
+  font-weight: 440;
+  font-size: clamp(1.05rem, 1.7vw, 1.35rem);
+  color: var(--ink);
+  transition: color .35s var(--ease-soft);
+  white-space: nowrap;
+}
+.menu__list li:hover .menu__name { color: var(--wine); }
+/* The dotted leader — a menu is the one place it is genuinely at home. */
+.menu__list li::after {
+  content: "";
+  order: 1;
+  border-bottom: 1px dotted rgba(89, 9, 12, .3);
+  transform: translateY(-4px);
+}
+.menu__note {
+  order: 2;
+  font-family: var(--ff-mono);
+  font-size: .66rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+}
+.menu__list li { grid-template-columns: auto 1fr auto; }
+
+.menu__foot {
+  margin-top: clamp(2rem, 4vw, 3rem);
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--hair);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: .8rem 2rem;
+  font-size: .9rem;
+  color: var(--muted);
+}
+.menu__foot strong { color: var(--wine); font-weight: 500; }
+
+/* ─────────── Kind words ─────────── */
+
+.words { background: var(--cream); }
+
+.words__big {
+  margin: 0 auto clamp(2.5rem, 6vw, 4rem);
+  max-width: 30ch;
+  text-align: center;
+  font-family: var(--ff-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(1.6rem, 3.4vw, 2.6rem);
+  line-height: 1.3;
+}
+.words__big footer {
+  margin-top: 1.4rem;
+  font-family: var(--ff-mono);
+  font-style: normal;
+  font-size: .68rem;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.words__big footer strong { color: var(--wine); font-weight: 400; }
+
+.words__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(1.5rem, 4vw, 4rem);
+  max-width: 900px;
+  margin-inline: auto;
+}
+.quote {
+  margin: 0;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--hair);
+}
+.quote p {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--ink);
+  margin: 0 0 1rem;
+}
+.quote footer {
+  font-family: var(--ff-mono);
+  font-size: .66rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.quote footer strong { color: var(--wine); font-weight: 400; }
+.stars { color: var(--caramel); letter-spacing: .2em; font-size: .8rem; margin-bottom: .7rem; }
+
+/* ─────────── Visit ─────────── */
+
+.visit { background: var(--wine-900); color: var(--cream); }
+
+.visit__title {
+  margin: 0 0 clamp(2.5rem, 6vw, 4rem);
+  font-family: var(--ff-serif);
+  font-weight: 400;
+  font-size: clamp(3rem, 9vw, 6.8rem);
+  line-height: .98;
+  letter-spacing: -.025em;
+  color: var(--white);
+}
+.visit__title em {
+  font-style: italic;
+  color: var(--sand-deep);
+}
+
+.visit__info {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.8rem 2rem;
+  margin: 0 0 clamp(2.5rem, 5vw, 3.5rem);
+  padding-top: clamp(1.5rem, 3vw, 2.2rem);
+  border-top: 1px solid var(--hair-light);
+}
+.visit__info dt {
+  font-family: var(--ff-mono);
+  font-size: .64rem;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--sand-deep);
+  margin-bottom: .5rem;
+}
+.visit__info dd { margin: 0; color: var(--cream); font-size: .95rem; line-height: 1.6; }
+.visit__info a {
+  border-bottom: 1px solid rgba(234, 220, 198, .45);
+  padding-bottom: 2px;
+  transition: color .3s var(--ease-soft), border-color .3s var(--ease-soft);
+}
+.visit__info a:hover { color: var(--sand); border-color: var(--sand); }
+
+.visit__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1.4rem; }
+
+/* ─────────── Footer ─────────── */
+
+.foot {
+  background: var(--wine-900);
+  color: var(--cream);
+  border-top: 1px solid var(--hair-light);
+}
+.foot__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.2rem 2rem;
+  padding-block: clamp(1.8rem, 4vw, 2.6rem);
+}
+.foot__brand { display: flex; align-items: center; gap: 1.2rem; }
+.foot__brand .logo__word { width: clamp(96px, 9vw, 118px); }
+.foot__tag {
+  margin: 0;
+  font-family: var(--ff-serif);
+  font-style: italic;
+  font-size: .95rem;
+  color: var(--muted-light);
+}
+.foot__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1.8rem;
+  font-family: var(--ff-mono);
+  font-size: .64rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted-light);
+  opacity: .82;
+}
+.foot__meta a:hover { color: var(--cream); }
+
+/* ─────────── Scroll reveal ─────────── */
+
+/* One transition, three custom properties. Variants only change where the
+   element starts, so every block on the page eases on the same curve over
+   the same duration and the page reads as one piece of motion. */
+.reveal {
+  --reveal-x: 0px;
+  --reveal-y: 30px;
+  --reveal-scale: 1;
+  opacity: 0;
+  transform: translate3d(var(--reveal-x), var(--reveal-y), 0) scale(var(--reveal-scale));
+  transition: opacity .95s var(--ease-glide), transform .95s var(--ease-glide);
+}
+.reveal.is-in { opacity: 1; transform: none; }
+
+/* Columns enter from their own side of the grid, so a two-column section
+   closes toward its centre instead of both halves rising in parallel. */
+.reveal--left  { --reveal-x: -42px; --reveal-y: 0px; }
+.reveal--right { --reveal-x:  42px; --reveal-y: 0px; }
+.reveal--scale { --reveal-y: 20px;  --reveal-scale: .95; }
+
+/* Cascade a block's own children in behind it. Delays live in CSS rather
+   than being written per-element from JS, which keeps the observer down to
+   a single class toggle. */
+.stagger > * {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+  transition: opacity .75s var(--ease-glide), transform .75s var(--ease-glide);
+}
+.stagger.is-in > * { opacity: 1; transform: none; }
+.stagger.is-in > *:nth-child(1) { transition-delay: .06s; }
+.stagger.is-in > *:nth-child(2) { transition-delay: .15s; }
+.stagger.is-in > *:nth-child(3) { transition-delay: .24s; }
+.stagger.is-in > *:nth-child(4) { transition-delay: .33s; }
+.stagger.is-in > *:nth-child(5) { transition-delay: .42s; }
+.stagger.is-in > *:nth-child(6) { transition-delay: .51s; }
+.stagger.is-in > *:nth-child(n + 7) { transition-delay: .6s; }
+
+/* ─────────── Responsive ─────────── */
+
+@media (max-width: 1000px) {
+  .words__grid { max-width: none; }
+  .visit__info { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 900px) {
+  .edge-sketch {
+    width: clamp(6.25rem, 17vw, 8.25rem);
+  }
+  .edge-sketch--tl,
+  .edge-sketch--bl { left: -3.75rem; }
+  .edge-sketch--tr,
+  .edge-sketch--br { right: -3.75rem; }
+  .edge-sketches--on-light .edge-sketch,
+  .edge-sketches--on-dark .edge-sketch { opacity: .14; }
+
+  .nav__burger { display: flex; }
+  .nav__cta { display: none; }
+
+  .nav__links {
+    position: fixed;
+    inset: 0 0 auto;
+    top: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1.5rem;
+    min-height: 100svh;
+    margin: 0;
+    padding: 5rem var(--pad);
+    background: var(--cream-2);
+    clip-path: circle(0% at calc(100% - 42px) 42px);
+    transition: clip-path .6s cubic-bezier(.7, 0, .3, 1);
+    z-index: 90;
+  }
+  .nav__links.is-open { clip-path: circle(150% at calc(100% - 42px) 42px); }
+
+  /* The links ride in behind the circular wipe rather than being revealed
+     flat by it — delays start after the wipe has cleared the top of the list.
+     At overlay size they switch from mono index to display serif. */
+  .nav__links a {
+    font-family: var(--ff-serif);
+    font-size: clamp(1.7rem, 6vw, 2.3rem);
+    letter-spacing: 0;
+    text-transform: none;
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity .45s var(--ease-glide), transform .45s var(--ease-glide);
+  }
+  .nav__links a sup { font-family: var(--ff-mono); font-size: .8rem; margin-right: .5em; }
+  .nav__links.is-open a { opacity: 1; transform: none; }
+  .nav__links.is-open a:nth-child(1) { transition-delay: .16s; }
+  .nav__links.is-open a:nth-child(2) { transition-delay: .22s; }
+  .nav__links.is-open a:nth-child(3) { transition-delay: .28s; }
+  .nav__links.is-open a:nth-child(4) { transition-delay: .34s; }
+  .nav__links.is-open a:nth-child(5) { transition-delay: .40s; }
+  .nav__links.is-open a:nth-child(6) { transition-delay: .46s; }
+  /* Keep the wordmark and the burger above the overlay while it is open. */
+  .nav__burger, .logo, .nav__social { position: relative; z-index: 95; }
+
+  .hero__inner { grid-template-columns: 1fr; min-height: 0; }
+  /* Stacked: the reel keeps its 9:16 proportion but narrows, so it does not
+     eat the whole first screen before the headline is reached. */
+  .hero__figure { order: -1; width: min(62%, 250px); margin-inline: auto; }
+
+  /* Entries stack: index and title share the top line, plate below. */
+  .entry,
+  .entry--flip {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "idx  body"
+      "media media";
+    row-gap: 1.4rem;
+    align-items: start;
+  }
+  .entry__idx { font-size: 1.9rem; padding-top: .3rem; }
+  .entry__media img { aspect-ratio: 16 / 10; }
+
+  .about__grid { grid-template-columns: 1fr; }
+  .menu__cols { grid-template-columns: 1fr; }
+  .words__grid { grid-template-columns: 1fr; }
+
+  /* Those columns are stacked now, so a sideways entrance no longer maps
+     to anything on screen — and it would push against overflow-x. */
+  .reveal--left,
+  .reveal--right { --reveal-x: 0px; --reveal-y: 30px; }
+}
+
+@media (max-width: 700px) {
+  .edge-sketch {
+    width: clamp(5.5rem, 23vw, 6.75rem);
+  }
+  .edge-sketch--tl,
+  .edge-sketch--bl { left: -3.35rem; }
+  .edge-sketch--tr,
+  .edge-sketch--br { right: -3.35rem; }
+  .edge-sketches--on-light .edge-sketch,
+  .edge-sketches--on-dark .edge-sketch { opacity: .11; }
+
+  .visit__info { grid-template-columns: 1fr; }
+  .hero__actions { flex-direction: column; align-items: stretch; }
+  .hero__actions .btn { justify-content: center; }
+
+  /* The dotted leader needs width to mean anything; at phone width the
+     note drops under the name instead. */
+  .menu__list li { grid-template-columns: 1fr; gap: .15rem; }
+  .menu__list li::after { display: none; }
+  .menu__note { text-align: left; white-space: normal; }
+  .menu__name { white-space: normal; }
+
+  .foot__inner { flex-direction: column; align-items: flex-start; }
+}
+
+/* ─────────── Motion / focus ─────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    transition-delay: 0ms !important;
+  }
+  html { scroll-behavior: auto; }
+  .reveal,
+  .stagger > * { opacity: 1; transform: none; }
+  /* Neutralise the scroll-driven offsets in case a value was already
+     written before the media query started matching. */
+  .hero__figure { --hero-shift: 0px; }
+  .edge-sketches { --sketch-drift: 0px; }
+  /* The card deck reverts to a plain scrolling list — pinning and covering
+     are scroll-linked motion, exactly what this preference asks to stop. */
+  .work__list > li { position: static; --stack-p: 0; }
+}
+
+/* currentColor guarantees the ring contrasts with whatever it sits on,
+   light section or dark. */
+:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+  border-radius: 4px;
+}

@@ -1,0 +1,12 @@
+# Local development and workspace state
+.agents
+.claude
+.codex
+._*
+skills-lock.json
+serve.py
+README.md
+
+# Retained source montage that is not used by the live page
+assets/bakery-reel.mp4
+assets/bakery-reel-poster.jpg

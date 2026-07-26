@@ -1,0 +1,30 @@
+# macOS and external-drive metadata
+.DS_Store
+._*
+
+# Local agent and editor state
+.agents/
+.claude/
+.codex/
+.idea/
+.vscode/
+skills-lock.json
+
+# Local Vercel project state
+.vercel/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Dependency and cache directories
+node_modules/
+__pycache__/
+*.py[cod]
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
