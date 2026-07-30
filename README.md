@@ -126,7 +126,17 @@ destination anyone navigates to.)
 
 Three sections (hero, practice, visit) each carry four pencil-sketch drawings
 at their corners, drawn from two 3×3 transparent sprite sheets in
-`assets/decor/` — eighteen drawings available, two image requests. Light
+`assets/decor/` — eighteen drawings available, two image requests. The sheets
+are **WebP at 1032×1032**, not PNG. They are soft-shaded raster drawings with
+~228k distinct colours, so lossless PNG was the worst possible fit: the pair
+cost 2.6 MB, more than the hero video, for decoration sitting at `opacity:
+.18` behind a colour filter. WebP q84 puts them at 408 KB together — an 85%
+cut whose worst per-pixel difference in a rendered corner is 12/255, with
+0.03% of pixels off by more than 8. 1032px is deliberate: the 3×3 grid puts
+cells at 344px and `.edge-sketch` never renders wider than 172px, so that is
+exactly 2× for retina and nothing is spent on invisible pixels. All the sprite
+maths is percentage-based (`background-size: 300% 300%`), so the sheet
+resolution is a free variable — no CSS changes when it moves. Light
 sections multiply the linework into the paper; dark sections invert and screen
 it so only the pencil marks glow through. The portfolio layout uses them
 sparingly on purpose — against the hairline rules, four sketched corners per
@@ -231,20 +241,42 @@ Two gotchas worth remembering if you touch this:
   `translate` is the entrance, `transform` is the scroll parallax. Animating the
   entrance on `transform` would erase the parallax the instant it settled.
 
-### The clip is heavy
+### The clip is heavy, and 720p is the floor
 
-3.0 MB, 29 seconds, and it carries an audio track that is never heard (the
-element is `muted`). Chrome will not preload media that size on a connection it
-rates slow, so on 3G the visitor gets the poster and nothing else. `preload` is
-set to `metadata` and playback starts on visibility, which helps, but the real
-fix is a smaller file. With ffmpeg available:
+2.73 MB over 29 seconds. It used to be 3.0 MB, carrying a 64 kbps AAC track
+across the whole clip that was never heard because the element is `muted`.
+That is gone — stripped with a stream copy, so the video bitstream is
+byte-identical (same packet MD5), 276 KB for free:
 
 ```bash
-ffmpeg -i hero-video.mp4 -t 8 -an -vf scale=720:-2 \
-       -c:v libx264 -crf 26 -movflags +faststart hero-video.mp4
+ffmpeg -i hero-video.mp4 -an -c:v copy -movflags +faststart out.mp4
 ```
 
-Dropping the audio and trimming to ~8 seconds should land it near 600 KB.
+Chrome will not preload media this size on a connection it rates slow, so on
+3G the visitor gets the poster and nothing else. `preload` stays `metadata`
+and playback starts on visibility, which helps.
+
+**Do not downscale it.** The obvious next move is a smaller frame, but
+measured in-browser, the element renders 379px wide on a 1440px desktop and
+228px on a 390px phone — and that phone is typically 3× DPR, which wants a
+684px source. At 720px the file is already within 5% of the minimum that keeps
+it sharp for the mobile audience this page is actually for. Cutting to 640px
+saves 750 KB and softens the hero for the majority of visitors.
+
+Re-encoding at the same size is also a dead end: the source is already
+efficient at 780 kbps, and libx264 at CRF 26 came out *larger* than the
+original. The two levers that remain, neither taken:
+
+| Option | Size | Cost |
+|---|---|---|
+| current: H.264, no audio | 2.73 MB | — |
+| VP9 `.webm` | 2.25 MB | second file + `<source>` fallback |
+| AV1 | 2.00 MB | second file + fallback, Safari 17+ |
+| trim to ~8s | ~0.8 MB | the element has `loop`; an arbitrary cut loops every 8s and can land mid-motion |
+
+The codec options cost ~0.5–0.7 MB against doubling the hero asset count and
+adding conditional delivery. The trim is the big win but it is a creative
+decision about how the hero feels, not a technical one.
 
 ## The bake deck
 

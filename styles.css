@@ -142,8 +142,16 @@ a { color: inherit; text-decoration: none; }
   user-select: none;
 }
 
+/* The sheets are WebP, not PNG. They are soft-shaded raster drawings with
+   ~228k distinct colours, so lossless PNG was the worst possible fit — the two
+   of them cost 2.6 MB, more than the hero video. WebP q84 puts them at 408 KB
+   together. 1032px is a deliberate size: the grid is 3x3, so cells land at
+   344px, and .edge-sketch never renders wider than 172px — exactly 2x for a
+   retina display, with nothing spent on pixels no one sees. WebP needs
+   Safari 14+, a lower bar than the aspect-ratio below (Safari 15+), so there
+   is no fallback to maintain. */
 .edge-sketch {
-  --sketch-sheet: url("assets/decor/bakery-sketches-a.png");
+  --sketch-sheet: url("assets/decor/bakery-sketches-a.webp");
   --sketch-x: 0%;
   --sketch-y: 0%;
   --sketch-rotation: 0deg;
@@ -231,7 +239,7 @@ a { color: inherit; text-decoration: none; }
 .edge-sketch--whisk,
 .edge-sketch--piping-bag,
 .edge-sketch--cookies {
-  --sketch-sheet: url("assets/decor/bakery-sketches-b.png");
+  --sketch-sheet: url("assets/decor/bakery-sketches-b.webp");
 }
 .edge-sketch--pain-au-chocolat { --sketch-x: 0%;   --sketch-y: 0%; }
 .edge-sketch--berliner         { --sketch-x: 50%;  --sketch-y: 0%; }
@@ -288,17 +296,6 @@ a { color: inherit; text-decoration: none; }
 .h2 em, .h3 em { font-style: italic; color: var(--caramel); }
 .h2--light { color: var(--white); }
 .h2--light em { color: var(--sand-deep); }
-
-.eyebrow {
-  font-family: var(--ff-mono);
-  font-size: .7rem;
-  font-weight: 400;
-  letter-spacing: .22em;
-  text-transform: uppercase;
-  color: var(--caramel);
-  margin: 0;
-}
-.eyebrow--light { color: var(--sand-deep); }
 
 .lede { font-size: 1.08rem; color: var(--ink); margin: 0 0 1rem; }
 .body { color: var(--muted); margin: 0 0 1rem; }
@@ -996,7 +993,7 @@ a { color: inherit; text-decoration: none; }
 
 /* Live, the copy sits at the foot of a full screen and has room to spare.
    Static it sits in a much shorter stage, close enough to the top that the
-   sticky nav can cut into the eyebrow — so buy the head some clearance. */
+   sticky nav can cut into the title — so buy the head some clearance. */
 .reel:not(.reel--live) .reel__copy {
   padding-block-start: clamp(5.5rem, 13vh, 8rem);
 }
@@ -1025,15 +1022,6 @@ a { color: inherit; text-decoration: none; }
 .reel__cap-note {
   font-size: .95rem;
   color: var(--muted-light);
-}
-
-.reel__hint {
-  margin: 0;
-  font-family: var(--ff-mono);
-  font-size: .66rem;
-  letter-spacing: .2em;
-  text-transform: uppercase;
-  color: var(--sand-deep);
 }
 
 .reel__meter {
