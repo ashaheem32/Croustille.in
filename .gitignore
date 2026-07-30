@@ -4,11 +4,20 @@
 
 # Local agent and editor state
 .agents/
-.claude/
 .codex/
 .idea/
 .vscode/
 skills-lock.json
+
+# .claude is local state, EXCEPT the checked-in run skill — that one is project
+# tooling and has to survive a clone. Git will not descend into an excluded
+# directory, so each path component is re-included stepwise rather than with a
+# single negation. The higgsfield skills stay ignored; they are installed from
+# skills-lock.json, not authored here.
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/run-croustille/
 
 # Local Vercel project state
 .vercel/

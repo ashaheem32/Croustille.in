@@ -350,6 +350,45 @@ Scene detection found **no cuts inside either shot** — each is one
 continuous move, which is exactly what scrubs well. The only transition in
 the cut is the dissolve the captions key off.
 
+### The generator's star had to be painted out
+
+The supplied footage carried a **48×48 four-pointed star burned into the
+picture** at (1136, 576) — 96px in from the right edge, 96px up from the
+bottom — for the whole 19.24s. It is in the decoded frames, not the page, so
+no amount of CSS reaches it: `.reel__video` is `object-fit: cover`, which
+means the video-pixel→screen mapping changes with every viewport aspect, and
+nothing overlaid stays on top of the mark. It hides against the white
+cheesecake plate around 15s but never actually goes away — a per-pixel
+temporal minimum across the clip shows it surviving every frame.
+
+`assets/film-reel.mp4` is the cut above with the star interpolated away:
+
+```bash
+ffmpeg -i film-reel.original.mp4 -vf "delogo=x=1130:y=570:w=60:h=60" \
+  -c:v libx264 -profile:v high -pix_fmt yuv420p -crf 23 \
+  -g 10 -keyint_min 10 -sc_threshold 0 -an -movflags +faststart \
+  film-reel.mp4
+```
+
+The box carries 6px of margin around the mark. **The `-g 10` group and the
+19.24s duration must survive any re-encode**: dense keyframes are what make
+the scrub land instantly, and `REEL_MARKS` in `script.js` is a *fraction* of
+duration, so a longer or shorter cut silently drags the caption swap off the
+dissolve.
+
+Cropping the star off was the alternative and it is worse here. Removing
+everything right of x=1136 takes the aspect from 1.778 to 1.575, and because
+the stage is `cover`, the narrower picture is then scaled *up* to fill the
+width — the subject grows, the composition tightens and the bottom of the
+stack leaves frame. delogo keeps the framing pixel-for-pixel; its
+interpolation only becomes visible above about 4× zoom, over a background
+that is already out of focus. SSIM against the pre-removal master is 0.9918,
+3.71 MB in and 3.83 MB out.
+
+`film-reel.original.mp4` is the pre-removal master, kept locally and
+`.vercelignore`d so the pass can be redone. Swap in new footage and expect
+to redo it: re-measure the mark before reusing these coordinates.
+
 Two standing gotchas, documented here because they bite silently: the reel
 section must **not** carry the `.section` class (its `overflow: hidden`
 would strand the sticky stage), and `body` must keep `overflow-x: clip`,
