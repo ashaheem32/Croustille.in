@@ -1045,13 +1045,13 @@ a { color: inherit; text-decoration: none; }
 
 /* 480vh for 19.2s of film keeps the scrub rate close to what a single
    10s shot had at 340vh — lengthen the film, lengthen the track. */
-.reel--live .reel__track { height: var(--reel-track, 480vh); }
+.reel--live .reel__track { height: var(--reel-track, 480svh); }
 
 .reel--live .reel__stage {
   position: sticky;
-  top: 0;
-  height: 100svh;
-  min-height: 0;
+  top: var(--nav-h, 80px);
+  height: calc(100svh - var(--nav-h, 80px));
+  min-height: min-content;
 }
 
 .reel--live .reel__meter { display: block; }
@@ -1074,8 +1074,29 @@ a { color: inherit; text-decoration: none; }
 }
 
 @media (max-width: 700px) {
-  .reel { --reel-track: 360vh; }
+  .reel { --reel-track: 360svh; }
   .reel__cap { max-width: none; }
+  .reel__title { font-size: clamp(2rem, 8vw, 3rem); }
+  .reel__copy { padding-block: 1.5rem max(1.5rem, env(safe-area-inset-bottom)); }
+}
+
+/* Leave the landscape footage visible above the copy on portrait phones. */
+@media (max-width: 700px) and (orientation: portrait) {
+  .reel__video {
+    height: 65%;
+    object-position: center;
+  }
+  .reel__veil {
+    background: linear-gradient(to bottom, transparent 25%, rgba(46, 4, 6, .2) 40%, var(--wine-900) 65%);
+  }
+}
+
+@media (max-height: 500px) {
+  .reel__copy { padding-block: 1rem; }
+  .reel__title { font-size: clamp(1.5rem, 5svh, 2.3rem); margin-bottom: .5rem; }
+  .reel__captions { margin-bottom: 0; }
+  .reel__cap { margin-bottom: 0; }
+  .reel--live .reel__cap { margin-bottom: 0; }
 }
 
 /* ─────────── The practice ─────────── */

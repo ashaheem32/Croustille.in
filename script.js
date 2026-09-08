@@ -103,19 +103,9 @@
   }
 
   /* ── Scroll-scrubbed film ───────────────────── */
-  /* The clip never plays. The page scroll is its transport: how far
-     `.reel__track` has travelled past the top of the window maps onto
-     currentTime, so the film runs forward when the visitor scrolls down and
-     backward when they scroll up. The footage is two continuous shots
-     joined by a cross-dissolve, re-encoded with a keyframe every 0.4s —
-     seeks can only land on keyframes, and each source file carried
-     exactly one for its whole length.
-
-     Two loops, deliberately: the scroll read happens in the shared drift
-     pass below (one listener, one layout read per frame), while the seek
-     runs in its own rAF that keeps easing after the scroll has stopped.
-     Writing currentTime straight from the scroll handler would step the
-     film in whatever jerky increments the wheel reports. */
+  /* Scroll supplies the target; decode completion supplies the next seek.
+     Keeping only one seek in flight prevents fast scrolling from repeatedly
+     cancelling frame decoding, especially on phones. */
   const reelSection = document.querySelector('.reel');
   const reelTrack = reelSection && reelSection.querySelector('.reel__track');
   const reelStage = reelSection && reelSection.querySelector('.reel__stage');
@@ -131,7 +121,6 @@
 
   let reelLive = false;
   let reelTarget = 0;   // where the scroll says the film should be, 0–1
-  let reelAt = 0;       // where it actually is — chases the target
   let reelRAF = 0;
   let reelCapIndex = -1;
 
@@ -143,37 +132,31 @@
     reelCaps.forEach((el, n) => el.classList.toggle('is-on', n === i));
   };
 
-  const reelStep = () => {
-    reelRAF = 0;
-
-    // Ease toward the target so a flicked trackpad reads as a camera move
-    // rather than a jump cut, but snap the last sliver so it always lands.
-    const diff = reelTarget - reelAt;
-    reelAt = Math.abs(diff) < 0.0004 ? reelTarget : reelAt + diff * 0.12;
-
-    reelSection.style.setProperty('--reel-progress', reelAt.toFixed(4));
-
-    const duration = reelVideo.duration;
-    if (duration) {
-      let t = reelAt * duration;
-      // Seeking past what has downloaded shows nothing at all, so hold at
-      // the buffered edge and let the fetch catch up rather than blanking.
-      const buffered = reelVideo.buffered;
-      if (buffered.length) {
-        const end = buffered.end(buffered.length - 1);
-        if (t > end) t = end;
-      }
-      // Half a frame of tolerance — below that the seek is invisible and
-      // only costs a decode.
-      if (Math.abs(reelVideo.currentTime - t) > 0.02) reelVideo.currentTime = t;
-    }
-
-    setReelCaption(reelAt);
-
-    if (reelAt !== reelTarget) reelRAF = requestAnimationFrame(reelStep);
+  const paintReel = () => {
+    const p = Math.min(reelVideo.currentTime / reelVideo.duration || 0, 1);
+    reelSection.style.setProperty('--reel-progress', p.toFixed(4));
+    setReelCaption(p);
   };
 
-  const queueReel = () => { if (!reelRAF) reelRAF = requestAnimationFrame(reelStep); };
+  const reelStep = () => {
+    reelRAF = 0;
+    if (!reelLive || reelVideo.seeking || reelVideo.readyState < 2) return;
+    const duration = reelVideo.duration;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+
+    // Stay inside the last decodable frame. Do not clamp to buffered.end:
+    // a range-capable host can fetch any target, including a reverse seek.
+    const t = Math.min(reelTarget * duration, Math.max(0, duration - 1 / 30));
+    if (Math.abs(reelVideo.currentTime - t) > 0.016) {
+      reelVideo.currentTime = t;
+    } else {
+      paintReel();
+    }
+  };
+
+  const queueReel = () => {
+    if (reelLive && !reelRAF) reelRAF = requestAnimationFrame(reelStep);
+  };
 
   if (reelSection && reelVideo && !reduceMotion) {
     // A playing clip and a scrubbing scroll would fight over currentTime.
@@ -181,7 +164,7 @@
     reelVideo.addEventListener('play', () => reelVideo.pause());
 
     const goLive = () => {
-      if (reelLive) return;
+      if (reelLive || reelVideo.readyState < 2 || !Number.isFinite(reelVideo.duration)) return;
       reelLive = true;
       // Only now does the track grow to its full height and the captions
       // start stacking — see the note above .reel in styles.css.
@@ -192,10 +175,29 @@
     };
 
     // goLive() reaches forward to queueDrift, which is declared below — so
-    // even the already-has-metadata path waits a frame rather than running
+    // even the already-has-frame-data path waits a frame rather than running
     // inside that temporal dead zone.
-    if (reelVideo.readyState >= 1) requestAnimationFrame(goLive);
-    else reelVideo.addEventListener('loadedmetadata', goLive, { once: true });
+    if (reelVideo.readyState >= 2) requestAnimationFrame(goLive);
+    reelVideo.addEventListener('loadeddata', goLive);
+    reelVideo.addEventListener('canplay', goLive);
+    reelVideo.addEventListener('seeked', () => {
+      if (!reelLive) return;
+      paintReel();
+      queueReel();
+    });
+    // Retry the latest target when data arrives even if scrolling stopped.
+    ['loadeddata', 'canplay', 'progress'].forEach((event) => {
+      reelVideo.addEventListener(event, queueReel);
+    });
+    reelVideo.addEventListener('error', () => {
+      reelLive = false;
+      cancelAnimationFrame(reelRAF);
+      reelRAF = 0;
+      reelSection.classList.remove('reel--live');
+      reelSection.style.removeProperty('--reel-progress');
+      reelVideo.removeAttribute('src');
+      reelVideo.load();
+    });
 
     // The file is ~3.9 MB and sits below the fold, so it stays at
     // preload="metadata" until the film is roughly a screen and a half away
@@ -281,7 +283,8 @@
     if (reelLive) {
       const rect = reelTrack.getBoundingClientRect();
       const travel = rect.height - reelStage.offsetHeight;
-      reelNext = travel > 0 ? Math.min(Math.max(-rect.top / travel, 0), 1) : 0;
+      const pinTop = parseFloat(getComputedStyle(reelStage).top) || 0;
+      reelNext = travel > 0 ? Math.min(Math.max((pinTop - rect.top) / travel, 0), 1) : 0;
     }
 
     // Coverage per stacked card. Scale keeps each card's top edge where it
@@ -337,6 +340,10 @@
     drift();
     window.addEventListener('scroll', queueDrift, { passive: true });
     window.addEventListener('resize', queueDrift);
+    if (document.fonts) document.fonts.ready.then(queueDrift);
+    if ('ResizeObserver' in window && reelStage) {
+      new ResizeObserver(queueDrift).observe(reelStage);
+    }
   }
 
   /* ── Footer year ────────────────────────────── */

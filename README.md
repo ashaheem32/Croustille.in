@@ -343,11 +343,21 @@ Between the Selected Bakes deck and The Practice, the page hands one full
 screen over to the two supplied macro films, cut into a single two-act film
 — and the film **does not play**. The scroll wheel is its transport: scroll
 down and it runs forward, scroll up and it runs backward, stop and it stops.
-`.reel__track` is 480vh tall (360vh under 700px) and supplies the scroll
-distance; `.reel__stage` is `position: sticky` inside it and holds the
-screen for the ~380vh the track can travel. `script.js` maps that travel
-onto `currentTime`, eased through its own rAF so a flicked trackpad reads
-as a camera move rather than a jump cut.
+`.reel__track` is 480svh tall (360svh under 700px) and supplies the scroll
+distance. The stage pins below the measured navigation and fills the remaining
+small viewport height, keeping mobile browser toolbar changes from stretching
+the track. Portrait phones reserve the lower part for copy; short landscape
+screens use compact typography and spacing.
+
+`script.js` maps travel onto `currentTime`, with one seek in flight at a time.
+Once decoding completes, the latest scroll target is applied and the caption
+and meter follow the decoded position. Media readiness events retry a pending
+target after buffering, even when scrolling has stopped. The tall track activates
+only after frame data arrives; a media error restores the static presentation.
+
+Run `node tests/reel.test.cjs` for the mocked media lifecycle regression checks
+(loading, rapid and reverse seeks, buffering recovery, end frame, errors, and
+reduced motion). These checks do not replace visual browser testing.
 
 **The two shots are joined by a 0.8s cross-dissolve, not a cut** — hard
 cuts read as glitches under a scrub, dissolves read as a camera move. The
@@ -467,7 +477,7 @@ anything that travels a distance. Nothing eases in a dialect of its own.
 | Cascade | `.stagger` containers deal their own children in behind the block — the practice list, the address grid | CSS `:nth-child` `transition-delay` |
 | Scroll-linked | Hero frame lags the page by up to 70px; corner sketches drift ±42px, top and bottom corners against each other | One rAF-batched pass in `script.js` |
 | Card stack | The five bakes pin below the nav and pile into a deck; covered cards recede and dim, in both directions | `position: sticky` pins; the drift pass writes `--stack-p` |
-| Scroll-scrubbed | The film's 19.2s mapped onto ~380vh of scroll, forwards and back; the caption swaps on the dissolve | The drift pass reads it; a second rAF eases the seek |
+| Scroll-scrubbed | The film's 19.2s mapped onto ~380vh of scroll, forwards and back; the caption swaps on the dissolve | The drift pass reads it; seek completion schedules the latest target |
 
 The drift pass reads every measurement before writing a single value. Reading and
 writing in the same loop would force a layout recalculation per element per frame,
